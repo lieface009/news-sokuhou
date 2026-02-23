@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>連続式タイマーくん - 起動</title>
+    <style>
+        body {
+            margin: 0;
+            background: #0d0f14;
+            color: #f0f1f6;
+            font-family: 'Helvetica Neue', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+            gap: 24px;
+        }
+
+        .icon {
+            font-size: 5rem;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        p {
+            color: #8892a4;
+            font-size: 1rem;
+            margin: 0;
+        }
+
+        .open-btn {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 16px 40px;
+            background: #6c5ce7;
+            color: #fff;
+            border-radius: 16px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-decoration: none;
+            box-shadow: 0 4px 20px rgba(108, 92, 231, 0.5);
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .open-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 28px rgba(108, 92, 231, 0.7);
+        }
+
+        small {
+            color: #545e73;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="icon">⏱️</div>
+    <h1>連続式タイマーくん</h1>
+    <p>下のボタンをタップしてアプリを開いてください</p>
+    <a class="open-btn" href="src/index.html">アプリを開く →</a>
+    <small>このファイル（開く.html）はブックマークしておくと便利です</small>
+
+    <script>
+        // 自動で index.html にリダイレクト（1.2秒後）
+        setTimeout(() => { window.location.href = 'src/index.html'; }, 1200);
+    </script>
+</body>
+
+</html>
