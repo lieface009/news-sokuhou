@@ -2,59 +2,61 @@ import { db } from '../db/db';
 import type { NewsItem, KeywordNews } from '../db/db';
 import { v4 as uuidv4 } from 'uuid';
 
-type NewsType = 'mainstream' | 'niche' | 'mock';
+type NewsType = 'mainstream' | 'niche';
 
 async function fetchRealNews(keyword: string): Promise<{ title: string, url: string, source: string, type: NewsType }[]> {
     const results: { title: string, url: string, source: string, type: NewsType }[] = [];
+    const seenUrls = new Set<string>();
 
-    // 1. Google News (Mainstream articles)
-    try {
-        const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(keyword)}&hl=ja&gl=JP&ceid=JP:ja`;
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
-        const response = await fetch(proxyUrl);
-        const data = await response.json();
+    const fetchGoogleNews = async (searchQuery: string, type: NewsType, maxItems: number) => {
+        try {
+            const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchQuery)}&hl=ja&gl=JP&ceid=JP:ja`;
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
+            const response = await fetch(proxyUrl);
+            const data = await response.json();
 
-        if (data.contents) {
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(data.contents, "text/xml");
-            const items = xmlDoc.querySelectorAll("item");
+            if (data.contents) {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(data.contents, "text/xml");
+                const items = xmlDoc.querySelectorAll("item");
 
-            // Get up to 3 mainstream articles
-            for (let i = 0; i < Math.min(items.length, 3); i++) {
-                const title = items[i].querySelector("title")?.textContent || "";
-                const link = items[i].querySelector("link")?.textContent || "";
-                const cleanTitle = title.split(" - ")[0] || title;
-                const source = title.split(" - ")[1] || "Google News";
-                results.push({ title: cleanTitle, url: link, source, type: 'mainstream' });
+                let count = 0;
+                for (let i = 0; i < items.length; i++) {
+                    if (count >= maxItems) break;
+
+                    const title = items[i].querySelector("title")?.textContent || "";
+                    let link = items[i].querySelector("link")?.textContent || "";
+
+                    // Basic deduplication by URL
+                    if (seenUrls.has(link)) continue;
+                    seenUrls.add(link);
+
+                    let cleanTitle = title.split(" - ")[0] || title;
+                    let source = title.split(" - ")[1] || "Google News";
+
+                    // Filter out obvious PR sites if desired, or keep them. 
+                    // Usually Google News cleans this up.
+                    results.push({ title: cleanTitle, url: link, source, type });
+                    count++;
+                }
             }
+        } catch (err) {
+            console.error(`${type} RSS Fetch failed:`, err);
         }
-    } catch (err) {
-        console.error("Mainstream RSS Fetch failed:", err);
-    }
+    };
 
-    // 2. Hatena Bookmark (Niche / Deep insights)
-    try {
-        const rssUrl = `https://b.hatena.ne.jp/search/text?q=${encodeURIComponent(keyword)}&mode=rss`;
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
-        const response = await fetch(proxyUrl);
-        const data = await response.json();
+    // 1. Google News (Mainstream articles) - Max 2 items
+    const mainstreamQuery = keyword;
 
-        if (data.contents) {
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(data.contents, "text/xml");
-            // Hatena XML namespaces can be tricky, but querySelector('item') usually works.
-            const items = xmlDoc.querySelectorAll("item");
+    // 2. Google News (Niche / Professional articles) - Max 1 item
+    // Add professional footprint queries
+    const nicheQuery = `${keyword} (専門誌 OR 業界誌 OR プレスリリース OR 調査レポート OR 論文 OR 専門家)`;
 
-            // Get up to 2 niche articles
-            for (let i = 0; i < Math.min(items.length, 2); i++) {
-                const title = items[i].querySelector("title")?.textContent || "";
-                const link = items[i].querySelector("link")?.textContent || "";
-                results.push({ title, url: link, source: "はてなブックマーク", type: 'niche' });
-            }
-        }
-    } catch (err) {
-        console.error("Niche RSS Fetch failed:", err);
-    }
+    // Run both fetches in parallel to speed up loading
+    await Promise.all([
+        fetchGoogleNews(mainstreamQuery, 'mainstream', 2),
+        fetchGoogleNews(nicheQuery, 'niche', 1)
+    ]);
 
     // Shuffle to mix them
     return results.sort(() => Math.random() - 0.5);
@@ -78,12 +80,9 @@ export async function runMockFetchJob() {
     for (const kw of keywords) {
         let realNews = await fetchRealNews(kw.text);
 
-        // If fetch failed or no items, fallback to mock
+        // If fetch failed or no items, we simply do nothing. No mock data.
         if (realNews.length === 0) {
-            realNews = [
-                { title: `${kw.text}に関する最新の動向分析`, url: "#", source: "Intelligence AI", type: 'mock' },
-                { title: `${kw.text}が拓く次世代の可能性`, url: "#", source: "Global Report", type: 'mock' }
-            ];
+            continue;
         }
 
         for (const item of realNews) {
@@ -92,7 +91,7 @@ export async function runMockFetchJob() {
 
             let excerpt = `「${kw.text}」に関連する最新のニュースです。${item.title}についての詳細をスキャンしました。`;
             if (item.type === 'niche') {
-                excerpt = `「${kw.text}」に関する深い考察やユニークな視点が含まれている可能性があります。`;
+                excerpt = `「${kw.text}」に関する専門的な業界情報や深い考察が含まれている可能性があります。`;
             }
 
             const news: NewsItem = {
@@ -115,8 +114,7 @@ export async function runMockFetchJob() {
             const recencyScore = 100;
 
             let reasonStr = `「${kw.text}」の主要ニュース`;
-            if (item.type === 'niche') reasonStr = `「${kw.text}」のニッチ・考察記事`;
-            if (item.type === 'mock') reasonStr = `「${kw.text}」の関連情報をシミュレート`;
+            if (item.type === 'niche') reasonStr = `「${kw.text}」の専門・業界情報`;
 
             const kn: KeywordNews = {
                 id: uuidv4(),
