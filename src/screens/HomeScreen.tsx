@@ -77,6 +77,16 @@ export const HomeScreen: React.FC = () => {
         showToast(`${kw.text} をスロット ${index + 1} に配置しました`);
     };
 
+    // New helper for mobile: tap card to place in first empty slot
+    const handleKeywordClick = (kw: Keyword) => {
+        const emptyIdx = activeSlots.findIndex(s => s === null);
+        if (emptyIdx !== -1) {
+            handleSlotDrop(kw, emptyIdx);
+        } else {
+            showToast("スロットがいっぱいです");
+        }
+    };
+
     const clearSlot = (index: number) => {
         const newSlots = [...activeSlots];
         newSlots[index] = null;
@@ -147,7 +157,7 @@ export const HomeScreen: React.FC = () => {
                             key={i}
                             className={`
                                 relative aspect-square rounded-[2rem] border-2 border-dashed flex flex-col items-center justify-center transition-all overflow-hidden
-                                ${slot ? 'border-indigo-500 bg-indigo-500/10 shadow-glow' : 'border-white/5 bg-white/[0.02]'}
+                                ${slot ? 'border-indigo-500 bg-indigo-500/10 shadow-glow' : 'border-white/20 bg-white/[0.05] hover:border-white/40'}
                             `}
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={(e) => {
@@ -175,8 +185,11 @@ export const HomeScreen: React.FC = () => {
                                     </span>
                                 </motion.div>
                             ) : (
-                                <div className="text-[9px] font-bold text-text-muted opacity-30 uppercase tracking-widest">
-                                    Slot {i + 1}
+                                <div className="flex flex-col items-center justify-center space-y-1 opacity-40">
+                                    <span className="text-[10px] font-black">{i + 1}</span>
+                                    <div className="text-[7px] font-bold text-text-muted uppercase tracking-widest">
+                                        SLOT
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -210,9 +223,10 @@ export const HomeScreen: React.FC = () => {
                                 onDragStart={(e: React.DragEvent) => {
                                     e.dataTransfer.setData("keyword", JSON.stringify(kw));
                                 }}
-                                className="min-w-[120px] aspect-square bg-bg-secondary border border-white/5 rounded-[2rem] p-4 flex flex-col items-center justify-center text-center cursor-grab active:cursor-grabbing hover:border-indigo-500/30 transition-all shadow-lg shrink-0"
+                                onClick={() => handleKeywordClick(kw)}
+                                className="min-w-[120px] aspect-square bg-bg-secondary border border-white/5 rounded-[2rem] p-4 flex flex-col items-center justify-center text-center cursor-grab active:cursor-grabbing hover:border-indigo-500/30 active:scale-95 transition-all shadow-lg shrink-0"
                             >
-                                <span className="text-[10px] font-black text-text-primary leading-none truncate w-full">
+                                <span className="text-[10px] font-black text-white leading-none truncate w-full">
                                     #{kw.text}
                                 </span>
                             </div>

@@ -2,23 +2,62 @@ import { db } from '../db/db';
 import type { NewsItem, KeywordNews } from '../db/db';
 import { v4 as uuidv4 } from 'uuid';
 
-const MOCK_SOURCES = [
-    { name: 'TechNews Japan', domain: 'technews-jp.test', trust: 92 },
-    { name: 'Financial Times Mock', domain: 'finance-times.test', trust: 95 },
-    { name: 'AI Daily Report', domain: 'ai-daily.test', trust: 88 },
-    { name: 'World Global Press', domain: 'world-press.test', trust: 90 }
-];
+type NewsType = 'mainstream' | 'niche' | 'mock';
 
-function generateMockTitle(keywordText: string): string {
-    const templates = [
-        `${keywordText}の衝撃的な最新トレンド：業界が激震`,
-        `専門家が分析する${keywordText}の次なる一手とは`,
-        `【独占】${keywordText}関連の新プロジェクトが秘密裏に始動`,
-        `${keywordText}市場、前年比200%の驚異的な成長を記録`,
-        `知らないと損をする${keywordText}活用の最前線`,
-        `${keywordText}が変える私たちの生活：2026年への展望`,
-    ];
-    return templates[Math.floor(Math.random() * templates.length)];
+async function fetchRealNews(keyword: string): Promise<{ title: string, url: string, source: string, type: NewsType }[]> {
+    const results: { title: string, url: string, source: string, type: NewsType }[] = [];
+
+    // 1. Google News (Mainstream articles)
+    try {
+        const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(keyword)}&hl=ja&gl=JP&ceid=JP:ja`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
+        const response = await fetch(proxyUrl);
+        const data = await response.json();
+
+        if (data.contents) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(data.contents, "text/xml");
+            const items = xmlDoc.querySelectorAll("item");
+
+            // Get up to 3 mainstream articles
+            for (let i = 0; i < Math.min(items.length, 3); i++) {
+                const title = items[i].querySelector("title")?.textContent || "";
+                const link = items[i].querySelector("link")?.textContent || "";
+                const cleanTitle = title.split(" - ")[0] || title;
+                const source = title.split(" - ")[1] || "Google News";
+                results.push({ title: cleanTitle, url: link, source, type: 'mainstream' });
+            }
+        }
+    } catch (err) {
+        console.error("Mainstream RSS Fetch failed:", err);
+    }
+
+    // 2. Hatena Bookmark (Niche / Deep insights)
+    try {
+        const rssUrl = `https://b.hatena.ne.jp/search/text?q=${encodeURIComponent(keyword)}&mode=rss`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
+        const response = await fetch(proxyUrl);
+        const data = await response.json();
+
+        if (data.contents) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(data.contents, "text/xml");
+            // Hatena XML namespaces can be tricky, but querySelector('item') usually works.
+            const items = xmlDoc.querySelectorAll("item");
+
+            // Get up to 2 niche articles
+            for (let i = 0; i < Math.min(items.length, 2); i++) {
+                const title = items[i].querySelector("title")?.textContent || "";
+                const link = items[i].querySelector("link")?.textContent || "";
+                results.push({ title, url: link, source: "はてなブックマーク", type: 'niche' });
+            }
+        }
+    } catch (err) {
+        console.error("Niche RSS Fetch failed:", err);
+    }
+
+    // Shuffle to mix them
+    return results.sort(() => Math.random() - 0.5);
 }
 
 function getRandomInt(min: number, max: number) {
@@ -37,47 +76,57 @@ export async function runMockFetchJob() {
     await db.newsItems.where('published_at').below(cutoff).delete();
 
     for (const kw of keywords) {
-        const numItems = getRandomInt(2, 4);
-        for (let i = 0; i < numItems; i++) {
-            const source = MOCK_SOURCES[getRandomInt(0, MOCK_SOURCES.length - 1)];
-            const id = uuidv4();
-            const title = generateMockTitle(kw.text);
-            const publishedAt = Date.now() - getRandomInt(0, 24 * 60 * 60 * 1000);
+        let realNews = await fetchRealNews(kw.text);
 
-            // Ensure at least the first one per keyword is Japanese
-            const lang = i === 0 ? 'ja' : (Math.random() > 0.5 ? 'ja' : 'en');
-            const isJA = lang === 'ja';
+        // If fetch failed or no items, fallback to mock
+        if (realNews.length === 0) {
+            realNews = [
+                { title: `${kw.text}に関する最新の動向分析`, url: "#", source: "Intelligence AI", type: 'mock' },
+                { title: `${kw.text}が拓く次世代の可能性`, url: "#", source: "Global Report", type: 'mock' }
+            ];
+        }
+
+        for (const item of realNews) {
+            const id = uuidv4();
+            const publishedAt = Date.now() - getRandomInt(0, 12 * 60 * 60 * 1000);
+
+            let excerpt = `「${kw.text}」に関連する最新のニュースです。${item.title}についての詳細をスキャンしました。`;
+            if (item.type === 'niche') {
+                excerpt = `「${kw.text}」に関する深い考察やユニークな視点が含まれている可能性があります。`;
+            }
 
             const news: NewsItem = {
                 id,
-                source: source.name,
-                title: isJA ? title : `Global Insights: ${kw.text} Trends`,
-                url: `https://${source.domain}/article/${id}`,
-                excerpt: isJA
-                    ? `${title}に関しての詳報です。今回の動向は${kw.text}に関連する市場全体に大きな影響を与える可能性があります。`
-                    : `Comprehensive update on ${kw.text} and its global implications in the current market.`,
-                content: `Simulation content for ${kw.text}.`,
-                language: lang,
+                source: item.source,
+                title: item.title,
+                url: item.url,
+                excerpt: excerpt,
+                content: `この記事は「${kw.text}」に基づき自動収集されました。詳細は配信元をご確認ください。`,
+                language: 'ja',
                 published_at: publishedAt,
                 thumbnail_url: `https://picsum.photos/seed/${id}/800/600`,
                 fetched_at: Date.now(),
-                trust_score: source.trust
+                trust_score: getRandomInt(85, 98)
             };
 
             await db.newsItems.add(news);
 
-            const matchScore = getRandomInt(80, 100);
-            const recencyScore = Math.max(0, 100 - Math.floor((Date.now() - publishedAt) / (60 * 60 * 1000)) * 4);
+            const matchScore = getRandomInt(90, 100);
+            const recencyScore = 100;
+
+            let reasonStr = `「${kw.text}」の主要ニュース`;
+            if (item.type === 'niche') reasonStr = `「${kw.text}」のニッチ・考察記事`;
+            if (item.type === 'mock') reasonStr = `「${kw.text}」の関連情報をシミュレート`;
 
             const kn: KeywordNews = {
                 id: uuidv4(),
                 keyword_id: kw.id,
                 news_item_id: news.id,
                 relevance_score: matchScore,
-                reason: `「${kw.text}」への高い一致度を確認`,
+                reason: reasonStr,
                 match_score: matchScore,
                 recency_score: recencyScore,
-                engagement_score: getRandomInt(60, 95),
+                engagement_score: getRandomInt(70, 95),
                 created_at: Date.now()
             };
             await db.keywordNews.add(kn);
