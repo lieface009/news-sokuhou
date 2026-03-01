@@ -1,12 +1,12 @@
 import { db } from '../db/db';
-import type { NewsItem, KeywordNews } from '../db/db';
+import type { NewsItem, KeywordNews, Keyword } from '../db/db';
 import { v4 as uuidv4 } from 'uuid';
 
 type NewsType = 'mainstream' | 'niche';
 
-async function fetchRealNews(keyword: string): Promise<{ title: string, url: string, source: string, type: NewsType }[]> {
+async function fetchRealNews(keyword: string, globalSeenUrls: Set<string>): Promise<{ title: string, url: string, source: string, type: NewsType }[]> {
     const results: { title: string, url: string, source: string, type: NewsType }[] = [];
-    const seenUrls = new Set<string>();
+    const localSeenUrls = new Set<string>();
 
     const fetchGoogleNews = async (searchQuery: string, type: NewsType, maxItems: number) => {
         try {
@@ -27,38 +27,29 @@ async function fetchRealNews(keyword: string): Promise<{ title: string, url: str
                     const title = items[i].querySelector("title")?.textContent || "";
                     let link = items[i].querySelector("link")?.textContent || "";
 
-                    // Basic deduplication by URL
-                    if (seenUrls.has(link)) continue;
-                    seenUrls.add(link);
+                    if (globalSeenUrls.has(link) || localSeenUrls.has(link)) continue;
+                    localSeenUrls.add(link);
 
                     let cleanTitle = title.split(" - ")[0] || title;
                     let source = title.split(" - ")[1] || "Google News";
 
-                    // Filter out obvious PR sites if desired, or keep them. 
-                    // Usually Google News cleans this up.
                     results.push({ title: cleanTitle, url: link, source, type });
                     count++;
                 }
             }
         } catch (err) {
-            console.error(`${type} RSS Fetch failed:`, err);
+            console.error(`${type} RSS Fetch failed for query "${searchQuery}":`, err);
         }
     };
 
-    // 1. Google News (Mainstream articles) - Max 2 items
     const mainstreamQuery = keyword;
-
-    // 2. Google News (Niche / Professional articles) - Max 1 item
-    // Add professional footprint queries
     const nicheQuery = `${keyword} (専門誌 OR 業界誌 OR プレスリリース OR 調査レポート OR 論文 OR 専門家)`;
 
-    // Run both fetches in parallel to speed up loading
     await Promise.all([
         fetchGoogleNews(mainstreamQuery, 'mainstream', 2),
         fetchGoogleNews(nicheQuery, 'niche', 1)
     ]);
 
-    // Shuffle to mix them
     return results.sort(() => Math.random() - 0.5);
 }
 
@@ -67,25 +58,29 @@ function getRandomInt(min: number, max: number) {
 }
 
 export async function runMockFetchJob() {
+    console.log('[FetchJob] Starting background news update...');
     const users = await db.users.toArray();
     if (users.length === 0) return;
 
     const keywords = await db.keywords.toArray();
     if (keywords.length === 0) return;
 
-    // Cleanup old items to prevent clutter
+    const allExistingNews = await db.newsItems.toArray();
+    const globalSeenUrls = new Set(allExistingNews.map(n => n.url));
+
     const cutoff = Date.now() - 48 * 60 * 60 * 1000;
     await db.newsItems.where('published_at').below(cutoff).delete();
 
-    for (const kw of keywords) {
-        let realNews = await fetchRealNews(kw.text);
+    // Process all keywords in parallel
+    await Promise.all(keywords.map(async (kw: Keyword) => {
+        const realNews = await fetchRealNews(kw.text, globalSeenUrls);
 
-        // If fetch failed or no items, we simply do nothing. No mock data.
-        if (realNews.length === 0) {
-            continue;
-        }
+        if (realNews.length === 0) return;
 
         for (const item of realNews) {
+            if (globalSeenUrls.has(item.url)) continue;
+            globalSeenUrls.add(item.url);
+
             const id = uuidv4();
             const publishedAt = Date.now() - getRandomInt(0, 12 * 60 * 60 * 1000);
 
@@ -112,7 +107,6 @@ export async function runMockFetchJob() {
 
             const matchScore = getRandomInt(90, 100);
             const recencyScore = 100;
-
             let reasonStr = `「${kw.text}」の主要ニュース`;
             if (item.type === 'niche') reasonStr = `「${kw.text}」の専門・業界情報`;
 
@@ -129,5 +123,7 @@ export async function runMockFetchJob() {
             };
             await db.keywordNews.add(kn);
         }
-    }
+    }));
+    console.log('[FetchJob] Background news update complete.');
 }
+

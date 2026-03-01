@@ -128,7 +128,7 @@ export const HomeScreen: React.FC = () => {
     };
 
     return (
-        <div className="main-content relative min-h-screen">
+        <div className="main-content relative min-h-screen pt-24 pb-12">
             <header className="flex justify-between items-start gap-4 mb-8 pt-4">
                 <div className="min-w-0">
                     <h1 className="text-2xl font-black text-white font-[Outfit] tracking-tighter">インテリジェンス・フィード</h1>
@@ -328,7 +328,7 @@ export const HomeScreen: React.FC = () => {
                                         {selectedArticle?.id === item.news.id && (
                                             <motion.div
                                                 layoutId={`article-container-${item.news.id}`}
-                                                className="absolute inset-x-[-10px] top-[-20px] z-[500] bg-bg-primary rounded-[3rem] shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/5 p-4 min-h-[110%]"
+                                                className="absolute inset-x-[-10px] top-[-5px] z-[500] bg-bg-primary rounded-[3rem] shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/5 p-4 min-h-[110%]"
                                                 initial={{ opacity: 0 }}
                                                 animate={{ opacity: 1 }}
                                                 exit={{ opacity: 0 }}

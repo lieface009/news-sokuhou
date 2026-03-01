@@ -6,14 +6,14 @@ import { KeywordsScreen } from './screens/KeywordsScreen';
 import { FavoritesScreen } from './screens/FavoritesScreen';
 import { CalendarScreen } from './screens/CalendarScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
-import { BottomNav } from './components/BottomNav';
+import { TopNav } from './components/TopNav';
 import { runMockFetchJob } from './api/mockFetchJob';
 
-// A layout with BottomNav and better content centering
+// A layout with TopNav and better content centering
 const AppLayout = () => {
   return (
     <div className="app-container">
-      <BottomNav />
+      <TopNav />
       <Outlet />
     </div>
   );
