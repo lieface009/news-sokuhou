@@ -131,7 +131,7 @@ export const SettingsScreen: React.FC = () => {
 
                     <div className="text-center space-y-3 opacity-30">
                         <p className="text-[9px] font-black text-text-muted tracking-[0.5em] uppercase">
-                            INTELLIGENCE PROTOCOL V5.0.1
+                            INTELLIGENCE PROTOCOL V6.3
                         </p>
                         <div className="flex justify-center gap-4">
                             <span className="text-[8px] font-bold">利用規約</span>

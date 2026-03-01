@@ -12,30 +12,54 @@ export const TopNav: React.FC = () => {
     ];
 
     return (
-        <nav className="fixed top-0 left-0 right-0 z-[100] px-4 pt-4 pointer-events-none">
-            <div className="max-w-md mx-auto pointer-events-auto">
-                <div className="glass-panel flex justify-center items-center gap-6 py-3 px-6 rounded-full shadow-2xl border border-white/10 backdrop-blur-3xl">
-                    {navItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = window.location.pathname.startsWith(item.to);
-                        return (
-                            <NavLink
-                                key={item.to}
-                                to={item.to}
-                                className={({ isActive }: { isActive: boolean }) =>
-                                    `flex flex-col items-center justify-center transition-all duration-300 ${isActive
-                                        ? 'text-indigo-400 scale-110'
-                                        : 'text-white/40 hover:text-white/80'
-                                    }`
-                                }
-                            >
-                                <div className={`p-2 rounded-xl transition-all duration-300 ${isActive ? 'bg-indigo-500/10' : ''}`}>
-                                    <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-                                </div>
-                            </NavLink>
-                        );
-                    })}
-                </div>
+        <nav style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            padding: '12px 16px',
+            display: 'flex',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+        }}>
+            <div style={{
+                display: 'flex',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '24px',
+                padding: '10px 28px',
+                borderRadius: '9999px',
+                background: 'rgba(15, 20, 40, 0.85)',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+                pointerEvents: 'auto',
+            }}>
+                {navItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                        <NavLink
+                            key={item.to}
+                            to={item.to}
+                            style={({ isActive }) => ({
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '8px',
+                                borderRadius: '12px',
+                                color: isActive ? '#818cf8' : 'rgba(255,255,255,0.4)',
+                                background: isActive ? 'rgba(99,102,241,0.15)' : 'transparent',
+                                transform: isActive ? 'scale(1.1)' : 'scale(1)',
+                                transition: 'all 0.2s ease',
+                                textDecoration: 'none',
+                            })}
+                        >
+                            <Icon size={20} />
+                        </NavLink>
+                    );
+                })}
             </div>
         </nav>
     );
